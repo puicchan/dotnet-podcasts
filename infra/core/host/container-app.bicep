@@ -4,13 +4,16 @@ param tags object = {}
 
 param containerAppsEnvironmentName string = ''
 param containerName string = 'main'
-//param containerRegistryName string = 'shayne.azurecr.io'
 param env array = []
 param external bool = true
 param imageName string
 param keyVaultName string = ''
 param managedIdentity bool = !empty(keyVaultName)
 param targetPort int = 80
+param allowedOrigins array = []
+param serviceBinds array = []
+param args array = []
+param command array = []
 
 @description('CPU cores allocated to a single container instance, e.g. 0.5')
 param containerCpuCoreCount string = '0.5'
@@ -32,14 +35,20 @@ resource app 'Microsoft.App/containerApps@2022-11-01-preview' = {
         external: external
         targetPort: targetPort
         transport: 'auto'
+        corsPolicy: {
+          allowedOrigins: union([ 'https://portal.azure.com', 'https://ms.portal.azure.com' ], allowedOrigins)
+        }
       }
     }
     template: {
+      serviceBinds: serviceBinds
       containers: [
         {
           image: imageName
           name: containerName
           env: env
+          command: command
+          args: args
           resources: {
             cpu: json(containerCpuCoreCount)
             memory: containerMemory
@@ -54,12 +63,8 @@ resource containerAppsEnvironment 'Microsoft.App/managedEnvironments@2022-03-01'
   name: containerAppsEnvironmentName
 }
 
-// 2022-02-01-preview needed for anonymousPullEnabled
-//resource containerRegistry 'Microsoft.ContainerRegistry/registries@2022-02-01-preview' existing = {
-//  name: containerRegistryName
-//}
-
 output identityPrincipalId string = managedIdentity ? app.identity.principalId : ''
 output imageName string = imageName
 output name string = app.name
 output uri string = 'https://${app.properties.configuration.ingress.fqdn}'
+output appId string = app.id
